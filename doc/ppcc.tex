@@ -1,0 +1,209 @@
+\documentclass[12pt,a4paper]{article}
+
+%\documentclass[12pt,a4paper]{report}
+%\documentclass{book}
+%\documentclass{article}
+
+\usepackage{xeCJK}
+\usepackage{makeidx}
+\usepackage[colorlinks,linkcolor=red]{hyperref}
+\usepackage{xcolor}
+\usepackage{listings}
+\lstset{numbers=left,
+    numberstyle=\tiny,
+    keywordstyle=\color{blue!70}, commentstyle=\color{red!50!green!50!blue!50},
+    frame=shadowbox,
+    rulesepcolor=\color{red!20!green!20!blue!20}
+}
+\usepackage{multirow}
+
+%中文断行
+\XeTeXlinebreaklocale "zh"
+%段首缩进
+\parindent 2em
+%文泉驿 字体
+\setCJKmainfont{文泉驿等宽微米黑:style=Regular}
+%\setCJKmainfont{文泉驿等宽正黑}
+%楷体
+%\setCJKmainfont{AR PL UKai CN}
+
+% 将日期变为中文格式
+\renewcommand{\today}{\number\year 年 \number\month 月 \number\day 日}
+
+% 绘图
+\newcommand{\wrt}[1]{\makebox(0,0)[c]{#1}}
+\newcommand{\lline}[1]{\line(-1,0){#1}}
+\newcommand{\rline}[1]{\line(1,0){#1}}
+\newcommand{\uline}[1]{\line(0,1){#1}}
+\newcommand{\dline}[1]{\line(0,-1){#1}}
+\newcommand{\lvec}[1]{\vector(-1,0){#1}}
+\newcommand{\rvec}[1]{\vector(1,0){#1}}
+\newcommand{\uvec}[1]{\vector(0,1){#1}}
+\newcommand{\dvec}[1]{\vector(0,-1){#1}}
+% 流程图 声明
+\newsavebox{\condition}
+\newsavebox{\process}
+\newsavebox{\inputoutput}
+% 流程图 过程
+\savebox{\process}(0,0){\thicklines
+  \put(-10,-3){\framebox(20,6){}}
+}
+% 流程图 条件
+\savebox{\condition}(0,0){\thicklines
+  \put(-10,0){\line(2,1){10}}
+  \put(-10,0){\line(2,-1){10}}
+  \put(10,0){\line(-2,1){10}}
+  \put(10,0){\line(-2,-1){10}}
+  }
+% 流程图 输入输出
+\savebox{\inputoutput}(0,0){\thicklines
+  \put(-10.5,-3){\rline{18}}
+  \put(-10.5,-3){\line(1,2){3}}
+  \put(10.5,3){\lline{18}}
+  \put(10.5,3){\line(-1,-2){3}}
+}
+
+%制作索引
+\makeindex
+\printindex
+\setcounter{secnumdepth}{5}
+
+\title{交叉编译器说明}
+\author{PengPeng}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+\section{概述}
+跟主流的PC软件开发工具一样，嵌入式系统开发需要编译器，链接器，解释器，以及其它的一些工具（这些工具可以集成到IDE中来方便用户开发使用)。但是嵌入式系统开发工具的特殊之处在于交叉编译器运行于一个平台（一般是我们的PC主机），而编译出来的程序却运行于另外一个平台（例如基于PowerPC或者ARM的目标机）。正是因为这种特性，我们才把这些工具称为交叉开发工具（cross-platform development tools）。
+
+本文档，我说明基于PowerPC平台建立的交叉编译器，后续会编写用我们制作的这个编译器编译U-boot、内核、busybox、应用程序的相关文档。
+\newpage
+
+\section{主机}
+Linux debian 3.2.0-4-amd64 \#1 SMP Debian 3.2.53-2 x86\_64 GNU/Linux
+\section{环境}
+运行init.sh脚本，创建可用环境
+\section{源码} 
+\begin{enumerate}
+    \item Linux内核的头文件 linux-3.12.18
+
+        \url{http://ftp.kernel.org/pub/linux/kernel/v3.x/}\href{http://ftp.kernel.org/pub/linux/kernel/v3.x/}{}
+    \item 二进制工具包binutils-2.24
+
+        \url{http://ftp.gnu.org/gnu/binutils/}\href{http://ftp.gnu.org/gnu/binutils/}{}
+    \item 编译器gcc-4.9.0
+
+        \url{http://ftp.gnu.org/gnu/gcc/}\href{http://ftp.gnu.org/gnu/gcc/}{}
+    \item C库glibc-2.19
+
+        \url{http://ftp.gnu.org/gnu/glibc/}\href{http://ftp.gnu.org/gnu/glibc/}{}
+    \item 浮点运算Ｃ库mpfr-3.1.2\footnote{它将会被集成到GCC软件包中}
+
+        \url{http://ftp.gnu.org/gnu/mpfr/}\href{http://ftp.gnu.org/gnu/mpfr/}{}
+    \item 整数，有理数，浮点数算术库gmp-6.0.0a\footnote{它将会被集成到GCC软件包中}
+
+        \url{http://ftp.gnu.org/gnu/gmp/}\href{http://ftp.gnu.org/gnu/gmp/}{}
+    \item 复数运算C库mpc-1.0.2\footnote{它将会被集成到GCC软件包中}
+
+        \url{http://www.multiprecision.org/index.php?prog=mpc&page=download}\href{http://www.multiprecision.org/index.php?prog=mpc&page=download}{}\footnote{该网站同时指出了mpc的最新版本，所依赖的mpfr和gmp的最低版本}
+
+        以上各个软件包，都是我从他们的官方网站上下载的到写这篇博文为止\footnote{\today}的最新\footnote{kernel为longterm版本}稳定版本。 
+
+\end{enumerate}
+
+\section{软件关系} 
+GUN交叉工具链主要有gcc，binutils，glibc构成，由于编译的工具链是针对PowerPC-Linux，所以我们需要linux基于PowerPC平台的头文件。各个软件在GNU交叉工具链中的逻辑关系如图\ref{软件关系}所示。
+
+\setlength{\unitlength}{1mm}
+\begin{figure}[!hbp]
+\begin{center}
+\begin{picture}(130, 60)
+    \put(0, 0){\framebox(40, 60)[t]{Debian7主机}}
+    \put(1, 10){\framebox(38, 40)[t]{交叉工具链}}
+    \put(5, 15){\framebox(30, 8)[c]{交叉gcc}}
+    \put(5, 25){\framebox(30, 8)[c]{交叉glibc}}
+    \put(5, 35){\framebox(30, 8)[c]{交叉binutils}}
+    \put(1, 1){\framebox(38, 8)[c]{主机工具(mkimage)}}
+
+    \put(50, 16){\framebox(30, 8)[c]{ppc源码}}
+    \put(50, 38){\framebox(30, 8)[c]{ppc头文件}}
+
+    \put(90, 0){\framebox(40, 60)[t]{PowerPC主机}}
+    \put(95, 20){\framebox(30, 20)[c]{\shortstack{PowerPC\\二进制}}} 
+    
+    \thicklines
+    \put(39, 20){\vector(1, 0){11}}
+    \put(39, 42){\vector(1, 0){11}}
+    \put(65, 38){\vector(0, -1){14}}
+
+    \put(80, 20){\rline{8}}
+    \put(88, 20){\uline{10}}
+    \put(88, 30){\vector(1, 0){7}}
+
+    \put(39, 5){\rline{26}}
+    \put(65, 5){\vector(0, 1){11}}
+\end{picture}
+\caption{软件关系\label{软件关系}}
+\end{center}
+\end{figure}
+% asymptote 制作框图不方便
+%\begin{figure}[!hbp]
+%\begin{center}
+%\includegraphics[height=80mm,width=80mm]{fig/softRelation.pdf}
+%\end{center}
+%\caption{软件关系\label{软件关系}}
+%\end{figure}
+其中交叉编译工具本身运行于主机，而它编译出的结果运行于PowerPC目标机。
+
+\section{目录布局}
+在/opt目录下创建ppc目录，在ppc\footnote{ppc表示PowerPC架构}目录下创建如图\ref{目录树}目录结构。
+\setlength{\unitlength}{1mm}
+\begin{figure}[!hbp]
+\begin{verbatim}
+                         ppcc
+                         |-- tar
+                         |-- build
+                         |   |-- src
+                         |   `-- work
+                         `-- tools
+\end{verbatim}
+\caption{目录树\label{目录树}}
+\end{figure}
+其中pppc为PowerPC Compiler的简写。tar表示源码包目录；build中的src为源码解压目录，work为工作时的编译目录；tools为交叉编译器的输出目录。
+
+\section{脚本源码} 
+为了方便使用制作交叉编译工具，源码的简要说明如表\ref{脚本源码}：
+\begin{table}[!hbp]
+\begin{center}
+    \begin{tabular}{|l|l|}
+        \hline
+        源码名 & 作用\\
+        \hline
+        buildPPCC.sh & 制作交叉工具 \\
+        \hline
+        getVer.py & 获取目前使用的源码版本，便于升级使用 \\
+        \hline
+        sh/0.setenv4ppc.sh & 各种准备工作 \\
+        \hline
+        sh/1.buildLinuxHeader.sh & 制作内核头文件 \\
+        \hline
+        sh/2.buildBinutils.sh & 制作交叉二进制工具包 \\
+        \hline
+        sh/3.buildGcc1.sh & 制作交叉GCC第一遍 \\
+        \hline
+        sh/4.buildGlibc.sh & 制作PowerPC版glibc \\
+        \hline
+        sh/5.buildGcc2.sh & 制作交叉GCC第二遍 \\
+        \hline
+        sh/6.test.sh & 测试交叉工具链 \\
+        \hline
+    \end{tabular}
+    \caption{脚本源码\label{脚本源码}}
+\end{center}
+\end{table}
+
+\end{document}
+
